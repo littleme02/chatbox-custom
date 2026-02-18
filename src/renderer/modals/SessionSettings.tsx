@@ -688,6 +688,18 @@ export function ChatConfig({
         )}
       </Stack>
 
+      <Stack gap="xs" py="xs">
+        <Flex align="center" justify="space-between" gap="xs">
+          <Text size="sm" fw="600">
+            {t('Strip message formatting')}
+          </Text>
+          <Switch
+            checked={settings?.stripMessageFormatting ?? false}
+            onChange={(v) => onSettingsChange({ stripMessageFormatting: v.target.checked })}
+          />
+        </Flex>
+      </Stack>
+
       <Stack>
         {settings?.provider === ModelProviderEnum.Claude && (
           <ClaudeProviderConfig settings={settings} onSettingsChange={onSettingsChange} />

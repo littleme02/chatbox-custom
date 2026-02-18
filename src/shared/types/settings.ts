@@ -130,6 +130,7 @@ export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
   autoCompaction: z.boolean().optional().catch(undefined),
   highlightContextMessages: z.boolean().optional().catch(undefined),
   highlightContextRoles: z.array(z.enum(['user', 'assistant', 'system'])).optional().catch(undefined),
+  stripMessageFormatting: z.boolean().optional().catch(undefined),
 })
 
 const UnifiedTokenUsageDetailSchema = z.object({

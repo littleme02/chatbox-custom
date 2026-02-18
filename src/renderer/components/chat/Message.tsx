@@ -54,6 +54,16 @@ import { MessageAttachmentGrid } from './MessageAttachmentGrid'
 import MessageErrTips from './MessageErrTips'
 import MessageStatuses from './MessageLoading'
 
+function stripMarkdownFormatting(text: string): string {
+  return text
+    .replace(/^(>\s*)+/gm, '') // blockquote markers (> indenting)
+    .replace(/^\|.*\|$/gm, '') // table rows
+    .replace(/^\s*[-:|]+\s*(\|\s*[-:|]+\s*)+$/gm, '') // table separator rows
+    .replace(/^[-*_]{3,}\s*$/gm, '') // horizontal rules
+    .replace(/\n{3,}/g, '\n\n') // collapse excessive blank lines left by removed lines
+    .trim()
+}
+
 interface Props {
   id?: string
   sessionId: string
@@ -67,6 +77,7 @@ interface Props {
   sessionPicUrl?: string
   isInContext?: boolean
   msgIndex?: number
+  stripFormatting?: boolean
 }
 
 const _Message: FC<Props> = (props) => {
@@ -450,11 +461,14 @@ const _Message: FC<Props> = (props) => {
                               enableMermaidRendering={enableMermaidRendering}
                               generating={msg.generating}
                             >
-                              {item.text || ''}
+                              {props.stripFormatting ? stripMarkdownFormatting(item.text || '') : (item.text || '')}
                             </Markdown>
                           ) : (
                             <div className="break-words whitespace-pre-line">
-                              {needCollapse && isCollapsed ? `${item.text.slice(0, collapseThreshold)}...` : item.text}
+                              {(() => {
+                                const text = props.stripFormatting ? stripMarkdownFormatting(item.text || '') : (item.text || '')
+                                return needCollapse && isCollapsed ? `${text.slice(0, collapseThreshold)}...` : text
+                              })()}
                               {needCollapse && isCollapsed && CollapseButton}
                             </div>
                           )}

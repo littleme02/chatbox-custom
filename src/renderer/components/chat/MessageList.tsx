@@ -326,6 +326,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
                         sessionPicUrl={currentSession.picUrl}
                         isInContext={contextMessageIds ? contextMessageIds.has(msg.id) : undefined}
                         msgIndex={index}
+                        stripFormatting={currentSession.settings?.stripMessageFormatting ?? false}
                       />
                     )}
                   </ErrorBoundary>
