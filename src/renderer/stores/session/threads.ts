@@ -154,8 +154,10 @@ export async function newThreadFromHere(sessionId: string, upToMessageId: string
     messageForksHash: session.messageForksHash,
   }
 
-  // Flat copy — strip messageForksHash so no fork UI in the new thread
-  const newMessages = session.messages.slice(0, boundaryIndex + 1).map((m) => ({ ...m }))
+  // Fresh copies with new IDs — the thread history is keyed by firstMessageId,
+  // so shared IDs between the archive and the new active thread would cause a
+  // collision in getCurrentThreadHistoryHash and one entry would be lost.
+  const newMessages = session.messages.slice(0, boundaryIndex + 1).map((m) => ({ ...m, id: uuidv4() }))
 
   await chatStore.updateSessionWithMessages(session.id, {
     ...session,
@@ -163,6 +165,7 @@ export async function newThreadFromHere(sessionId: string, upToMessageId: string
     messages: newMessages,
     threadName: '',
     messageForksHash: undefined,
+    compactionPoints: undefined, // old compaction points reference old IDs, clear them
   })
 
   setTimeout(() => {
