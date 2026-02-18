@@ -2,15 +2,28 @@ import * as Sentry from '@sentry/react'
 import copyToClipboardFallback from 'copy-to-clipboard'
 
 export function copyToClipboard(text: string) {
-  try {
-    navigator?.clipboard?.writeText(text)
-  } catch (e) {
-    Sentry.captureException(e)
+  // On Linux/Wayland, route through main process using wl-copy so clipboard is
+  // handed off to the system daemon immediately instead of kept "live" by Electron
+  const electronAPI = (window as any).electronAPI
+  if (electronAPI) {
+    electronAPI.invoke('clipboard-write', text)
+    return
   }
-  try {
-    copyToClipboardFallback(text)
-  } catch (e) {
-    Sentry.captureException(e)
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch((e) => {
+      Sentry.captureException(e)
+      try {
+        copyToClipboardFallback(text)
+      } catch (e2) {
+        Sentry.captureException(e2)
+      }
+    })
+  } else {
+    try {
+      copyToClipboardFallback(text)
+    } catch (e) {
+      Sentry.captureException(e)
+    }
   }
 }
 

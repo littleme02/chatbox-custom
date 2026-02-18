@@ -18,6 +18,7 @@ export interface BuildContextOptions {
  */
 export function buildContextForAI(options: BuildContextOptions): Message[] {
   const { messages, compactionPoints, keepToolCallRounds = 2 } = options
+  const contextRoles = options.sessionSettings?.highlightContextRoles
 
   const completedMessages = messages.filter((m) => !m.generating)
 
@@ -25,17 +26,20 @@ export function buildContextForAI(options: BuildContextOptions): Message[] {
     return []
   }
 
+  const applyRoleFilter = (msgs: Message[]) =>
+    contextRoles ? msgs.filter((m) => contextRoles.includes(m.role as 'user' | 'assistant' | 'system')) : msgs
+
   const latestCompactionPoint = findLatestCompactionPoint(compactionPoints)
 
   if (!latestCompactionPoint) {
-    return cleanToolCalls(completedMessages, keepToolCallRounds)
+    return applyRoleFilter(cleanToolCalls(completedMessages, keepToolCallRounds))
   }
 
   const boundaryIndex = findMessageIndex(completedMessages, latestCompactionPoint.boundaryMessageId)
   const summaryMessage = findMessage(completedMessages, latestCompactionPoint.summaryMessageId)
 
   if (boundaryIndex === -1) {
-    return cleanToolCalls(completedMessages, keepToolCallRounds)
+    return applyRoleFilter(cleanToolCalls(completedMessages, keepToolCallRounds))
   }
 
   const messagesAfterBoundary = completedMessages.slice(boundaryIndex + 1).filter((m) => !m.isSummary)
@@ -52,7 +56,7 @@ export function buildContextForAI(options: BuildContextOptions): Message[] {
     contextMessages = [systemMessage, ...contextMessages]
   }
 
-  return cleanToolCalls(contextMessages, keepToolCallRounds)
+  return applyRoleFilter(cleanToolCalls(contextMessages, keepToolCallRounds))
 }
 
 export function buildContextForSession(

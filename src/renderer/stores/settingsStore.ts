@@ -100,7 +100,12 @@ export const settingsStore = createStore<Settings & Action>()(
             }
           }
 
-          return SettingsSchema.parse(settings)
+          try {
+            return SettingsSchema.parse(settings)
+          } catch (e) {
+            log.error('Settings schema validation failed during hydration, using raw settings', e)
+            return settings as Settings
+          }
         },
         skipHydration: true,
       }

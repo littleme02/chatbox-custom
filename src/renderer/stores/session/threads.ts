@@ -76,12 +76,14 @@ export async function switchThread(sessionId: string, threadId: string) {
     name: session.threadName || session.name,
     messages: session.messages,
     createdAt: Date.now(),
+    messageForksHash: session.messageForksHash,
   })
   await chatStore.updateSessionWithMessages(session.id, {
     ...session,
     threads: newThreads,
     messages: target.messages,
     threadName: target.name,
+    messageForksHash: target.messageForksHash,
   })
   setTimeout(() => scrollActions.scrollToBottom('smooth'), 300)
 }
@@ -103,6 +105,7 @@ export async function refreshContextAndCreateNewThread(sessionId: string) {
     name: session.threadName || session.name,
     messages: session.messages,
     createdAt: Date.now(),
+    messageForksHash: session.messageForksHash,
   }
 
   let systemPrompt = session.messages.find((m) => m.role === 'system')
@@ -170,6 +173,7 @@ export async function compressAndCreateThread(sessionId: string, summary: string
     name: session.threadName || session.name,
     messages: session.messages,
     createdAt: Date.now(),
+    messageForksHash: session.messageForksHash,
   }
 
   // Get original system prompt (if exists)

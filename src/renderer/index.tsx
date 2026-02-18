@@ -36,9 +36,13 @@ import './setup/ga_init'
 
 // 引入保护代码
 import './setup/protect'
+
+// Fix Wayland clipboard: intercept copy events and use wl-copy to hand off data to system daemon
+import './setup/clipboard_fix'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { initLastUsedModelStore } from './stores/lastUsedModelStore'
 import { initSettingsStore } from './stores/settingsStore'
+import * as defaults from '@shared/defaults'
 
 // 开发环境下引入错误测试工具
 // if (process.env.NODE_ENV === 'development') {
@@ -134,7 +138,13 @@ initializeApp()
     clearTimeout(tid)
 
     // 等待settings初始化完成，避免闪屏
-    const [settings] = await Promise.all([initSettingsStore(), initLastUsedModelStore()])
+    const [settings] = await Promise.all([
+      initSettingsStore().catch((e) => {
+        log.error('initSettingsStore failed, falling back to defaults', e)
+        return defaults.settings()
+      }),
+      initLastUsedModelStore().catch(() => undefined),
+    ])
 
     i18n.changeLanguage(settings.language)
     // 初始化完成，可以开始渲染

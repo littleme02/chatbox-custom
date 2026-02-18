@@ -333,6 +333,11 @@ async function createWindow() {
   // https://www.computerhope.com/jargon/m/menubar.htm
   mainWindow.setMenuBarVisibility(false)
 
+  // Grant clipboard-write permission so navigator.clipboard.writeText() works (plain text only, avoids HTML clipboard issues on Wayland)
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'clipboard-read' || permission === 'clipboard-write' || permission === 'clipboard-sanitized-write' ? true : true)
+  })
+
   // 网络问题
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -605,8 +610,28 @@ ipcMain.handle('ensureProxy', (event, json) => {
 })
 
 ipcMain.handle('relaunch', () => {
-  app.relaunch()
-  app.quit()
+  if (app.isPackaged) {
+    app.relaunch()
+    app.quit()
+  } else {
+    // In dev mode, app.relaunch() kills the vite dev server, leaving a blank window.
+    // Instead, reload the renderer which re-runs initialization with the new data.
+    mainWindow?.webContents.reload()
+  }
+})
+
+ipcMain.handle('clipboard-write', (_event, text: string) => {
+  // Use wl-copy on Linux/Wayland to hand off clipboard to the system daemon,
+  // avoiding the issue where Electron keeps clipboard "live" and blocks other apps
+  if (process.platform === 'linux') {
+    const { spawn } = require('child_process')
+    const proc = spawn('wl-copy', [], { stdio: ['pipe', 'ignore', 'ignore'] })
+    proc.stdin.write(text)
+    proc.stdin.end()
+  } else {
+    const { clipboard } = require('electron')
+    clipboard.writeText(text)
+  }
 })
 
 ipcMain.handle('analysticTrackingEvent', (event, dataJson) => {

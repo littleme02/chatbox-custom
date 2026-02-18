@@ -655,6 +655,39 @@ export function ChatConfig({
         </Stack>
       )}
 
+      <Stack gap="xs" py="xs">
+        <Flex align="center" justify="space-between" gap="xs">
+          <Text size="sm" fw="600">
+            {t('Highlight context messages')}
+          </Text>
+          <Switch
+            checked={settings?.highlightContextMessages ?? false}
+            onChange={(v) => onSettingsChange({ highlightContextMessages: v.target.checked })}
+          />
+        </Flex>
+        {(settings?.highlightContextMessages ?? false) && (
+          <Flex gap="xs" pl="md">
+            {(['user', 'assistant', 'system'] as const).map((role) => {
+              const roles = settings?.highlightContextRoles?.length ? settings.highlightContextRoles : ['user', 'assistant', 'system']
+              const isActive = roles.includes(role)
+              return (
+                <Button
+                  key={role}
+                  size="compact-xs"
+                  variant={isActive ? 'filled' : 'default'}
+                  onClick={() => {
+                    const newRoles = isActive ? roles.filter((r) => r !== role) : [...roles, role]
+                    onSettingsChange({ highlightContextRoles: newRoles as ('user' | 'assistant' | 'system')[] })
+                  }}
+                >
+                  {t(role.charAt(0).toUpperCase() + role.slice(1))}
+                </Button>
+              )
+            })}
+          </Flex>
+        )}
+      </Stack>
+
       <Stack>
         {settings?.provider === ModelProviderEnum.Claude && (
           <ClaudeProviderConfig settings={settings} onSettingsChange={onSettingsChange} />

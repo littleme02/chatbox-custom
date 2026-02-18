@@ -165,7 +165,7 @@ export function useContextTokens(options: UseContextTokensOptions): UseContextTo
   const contextMessages = useMemo(() => {
     if (!session) return []
     return getContextMessagesForTokenEstimation(session, { settings })
-  }, [session?.messages, session?.compactionPoints, settings.maxContextMessageCount])
+  }, [session?.messages, session?.compactionPoints, settings.maxContextMessageCount, session?.settings?.highlightContextRoles])
 
   // 2. tokenizerType must be stable
   const tokenizerType = useMemo(() => getTokenizerType(model), [model?.provider, model?.modelId])
@@ -180,7 +180,7 @@ export function useContextTokens(options: UseContextTokensOptions): UseContextTo
       latestCompactionBoundaryId: getLatestCompactionBoundaryId(session.compactionPoints),
       tokenizerType,
     })
-  }, [sessionId, session?.compactionPoints, settings.maxContextMessageCount, contextMessages, tokenizerType])
+  }, [sessionId, session?.compactionPoints, settings.maxContextMessageCount, contextMessages, tokenizerType, session?.settings?.highlightContextRoles])
 
   // 4. Call useTokenEstimation
   const tokenResult = useTokenEstimation({

@@ -31,6 +31,7 @@ const ongoingCompactions = new Set<string>()
 
 export interface CompactionOptions {
   force?: boolean
+  boundaryMessageId?: string // When set, only compress messages before this message
 }
 
 export interface CompactionResult {

@@ -410,6 +410,24 @@ export async function genMessageContext(
       keepToolCallRounds: 2,
       sessionSettings: settings,
     })
+  } else {
+    const contextRoles = settings.highlightContextRoles
+    if (contextRoles) {
+      contextMessages = contextMessages.filter((m) => contextRoles.includes(m.role as 'user' | 'assistant' | 'system'))
+    }
+  }
+
+  // Always ensure the last user message and system prompt survive role filtering,
+  // so the AI always knows what it's responding to.
+  if (settings.highlightContextRoles) {
+    const systemMsg = msgs.find((m) => m.role === 'system')
+    const lastUserMsg = [...msgs].reverse().find((m) => m.role === 'user')
+    if (systemMsg && !contextMessages.some((m) => m.id === systemMsg.id)) {
+      contextMessages = [systemMsg, ...contextMessages]
+    }
+    if (lastUserMsg && !contextMessages.some((m) => m.id === lastUserMsg.id)) {
+      contextMessages = [...contextMessages, lastUserMsg]
+    }
   }
 
   // Pre-fetch all blob contents in parallel to avoid N+1 sequential fetches

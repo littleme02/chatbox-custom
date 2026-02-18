@@ -128,6 +128,8 @@ export const SessionSettingsSchema = GlobalSessionSettingsSchema.extend({
   imageGenerateNum: z.number().optional().catch(1),
   providerOptions: ProviderOptionsSchema.optional().catch(undefined),
   autoCompaction: z.boolean().optional().catch(undefined),
+  highlightContextMessages: z.boolean().optional().catch(undefined),
+  highlightContextRoles: z.array(z.enum(['user', 'assistant', 'system'])).optional().catch(undefined),
 })
 
 const UnifiedTokenUsageDetailSchema = z.object({
@@ -375,8 +377,8 @@ export const SettingsSchema = GlobalSessionSettingsSchema.extend({
 
   shortcuts: ShortcutSettingSchema,
 
-  extension: ExtensionSettingsSchema,
-  mcp: MCPSettingsSchema,
+  extension: ExtensionSettingsSchema.catch({ webSearch: { provider: 'build-in' } } as any),
+  mcp: MCPSettingsSchema.catch({ servers: [], enabledBuiltinServers: [] }),
 })
 
 // TODO: provider的 base info 和 settings混在一起了，可以考虑像 session settings 和 global settings一样拆开

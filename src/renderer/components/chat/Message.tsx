@@ -63,6 +63,7 @@ interface Props {
   small?: boolean
   assistantAvatarKey?: string
   sessionPicUrl?: string
+  isInContext?: boolean
 }
 
 const _Message: FC<Props> = (props) => {
@@ -369,7 +370,7 @@ const _Message: FC<Props> = (props) => {
     >
       <Grid container wrap="nowrap" spacing={1.5}>
         <Grid item>
-          <Box className={cn('relative', msg.role !== 'assistant' ? 'mt-1' : 'mt-2')}>
+          <Box className={cn('relative rounded-full', msg.role !== 'assistant' ? 'mt-1' : 'mt-2', props.isInContext && 'ring-2 ring-orange-500')}>
             {
               {
                 assistant: (

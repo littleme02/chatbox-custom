@@ -244,6 +244,7 @@ export const SessionThreadSchema = z.object({
   messages: z.array(MessageSchema),
   createdAt: z.number(),
   compactionPoints: z.array(CompactionPointSchema).optional(),
+  messageForksHash: z.record(z.string(), MessageForkSchema).optional(),
 })
 
 export const SessionSchema = z.object({

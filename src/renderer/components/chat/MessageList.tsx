@@ -43,6 +43,7 @@ import {
   switchFork,
   switchThread,
 } from '@/stores/sessionActions'
+import { getContextMessageIds } from '@/packages/context-management'
 import { getAllMessageList, getCurrentThreadHistoryHash } from '@/stores/sessionHelpers'
 import { settingsStore } from '@/stores/settingsStore'
 import { useUIStore } from '@/stores/uiStore'
@@ -109,6 +110,12 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
     }
     return null
   }, [currentMessageList])
+
+  const highlightContext = currentSession.settings?.highlightContextMessages ?? false
+  const contextMessageIds = useMemo(() => {
+    if (!highlightContext) return null
+    return new Set(getContextMessageIds(currentSession, currentSession.settings?.maxContextMessageCount))
+  }, [highlightContext, currentSession])
 
   const virtuoso = useRef<VirtuosoHandle>(null)
   const messageListRef = useRef<HTMLDivElement>(null)
@@ -317,6 +324,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
                         }
                         assistantAvatarKey={currentSession.assistantAvatarKey}
                         sessionPicUrl={currentSession.picUrl}
+                        isInContext={contextMessageIds ? contextMessageIds.has(msg.id) : undefined}
                       />
                     )}
                   </ErrorBoundary>
