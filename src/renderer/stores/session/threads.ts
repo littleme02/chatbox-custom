@@ -130,6 +130,48 @@ export async function startNewThread(sessionId: string) {
 }
 
 /**
+ * Create a new thread using a flat copy of messages up to and including the given message.
+ * The current messages are archived as a thread.
+ * @param sessionId Session id
+ * @param upToMessageId The last message to include in the new thread (inclusive)
+ */
+export async function newThreadFromHere(sessionId: string, upToMessageId: string) {
+  const session = await chatStore.getSession(sessionId)
+  if (!session) return
+
+  for (const m of session.messages) {
+    m?.cancel?.()
+  }
+
+  const boundaryIndex = session.messages.findIndex((m) => m.id === upToMessageId)
+  if (boundaryIndex === -1) return
+
+  const newThread: SessionThread = {
+    id: uuidv4(),
+    name: session.threadName || session.name,
+    messages: session.messages,
+    createdAt: Date.now(),
+    messageForksHash: session.messageForksHash,
+  }
+
+  // Flat copy — strip messageForksHash so no fork UI in the new thread
+  const newMessages = session.messages.slice(0, boundaryIndex + 1).map((m) => ({ ...m }))
+
+  await chatStore.updateSessionWithMessages(session.id, {
+    ...session,
+    threads: session.threads ? [...session.threads, newThread] : [newThread],
+    messages: newMessages,
+    threadName: '',
+    messageForksHash: undefined,
+  })
+
+  setTimeout(() => {
+    scrollActions.scrollToBottom()
+    dom.focusMessageInput()
+  }, 100)
+}
+
+/**
  * Remove current thread. If history threads exist, switch to last one; otherwise clear session
  */
 export async function removeCurrentThread(sessionId: string) {

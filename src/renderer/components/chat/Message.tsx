@@ -6,6 +6,7 @@ import type { Message, MessagePicture, MessageToolCallPart, SessionType } from '
 import { getMessageText } from '@shared/utils/message'
 import {
   IconArrowDown,
+  IconArrowsSplit2,
   IconBug,
   IconCode,
   IconCopy,
@@ -41,6 +42,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useUIStore } from '@/stores/uiStore'
 import '../../static/Block.css'
 import { generateMore, modifyMessage, regenerateInNewFork, removeMessage } from '@/stores/sessionActions'
+import { newThreadFromHere } from '@/stores/session'
 import * as toastActions from '@/stores/toastActions'
 import ActionMenu, { type ActionMenuItemProps } from '../ActionMenu'
 import { isContainRenderableCode, MessageArtifact } from '../Artifact'
@@ -64,6 +66,7 @@ interface Props {
   assistantAvatarKey?: string
   sessionPicUrl?: string
   isInContext?: boolean
+  msgIndex?: number
 }
 
 const _Message: FC<Props> = (props) => {
@@ -295,6 +298,17 @@ const _Message: FC<Props> = (props) => {
         icon: IconQuoteFilled,
         onClick: quoteMsg,
       },
+      ...(!msg.isSummary
+        ? [
+            {
+              text: t('New thread from here'),
+              icon: IconArrowsSplit2,
+              onClick: async () => {
+                await newThreadFromHere(sessionId, msg.id)
+              },
+            },
+          ]
+        : []),
       { divider: true },
       ...(msg.role === 'assistant' && platform.type === 'mobile'
         ? [
@@ -342,6 +356,8 @@ const _Message: FC<Props> = (props) => {
       onCopyMsg,
       msg.model,
       props.sessionType,
+      msg.isSummary,
+      props.msgIndex,
     ]
   )
   const [actionMenuOpened, setActionMenuOpened] = useState(false)

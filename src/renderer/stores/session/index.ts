@@ -50,12 +50,13 @@ export {
   scheduleGenerateNameAndThreadName,
   scheduleGenerateThreadName,
 } from './naming'
-// Thread operations (9 functions)
+// Thread operations (10 functions)
 export {
   compressAndCreateThread,
   editThread,
   moveCurrentThreadToConversations,
   moveThreadToConversations,
+  newThreadFromHere,
   refreshContextAndCreateNewThread,
   removeCurrentThread,
   removeThread,

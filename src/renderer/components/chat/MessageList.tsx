@@ -325,6 +325,7 @@ const MessageList = forwardRef<MessageListRef, MessageListProps>((props, ref) =>
                         assistantAvatarKey={currentSession.assistantAvatarKey}
                         sessionPicUrl={currentSession.picUrl}
                         isInContext={contextMessageIds ? contextMessageIds.has(msg.id) : undefined}
+                        msgIndex={index}
                       />
                     )}
                   </ErrorBoundary>
