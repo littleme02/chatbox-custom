@@ -2,7 +2,7 @@ import NiceModal from '@ebay/nice-modal-react'
 import { ActionIcon, Badge, Flex, ScrollArea, Text } from '@mantine/core'
 import SwipeableDrawer from '@mui/material/SwipeableDrawer'
 import type { Session, SessionThreadBrief } from '@shared/types'
-import { IconDots, IconEdit, IconSwitch, IconTrash, IconX } from '@tabler/icons-react'
+import { IconDots, IconEdit, IconList, IconNetwork, IconSwitch, IconTrash, IconX } from '@tabler/icons-react'
 import { useAtom, useAtomValue } from 'jotai'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,11 +15,13 @@ import { useLanguage } from '@/stores/settingsStore'
 import { CHATBOX_BUILD_PLATFORM } from '@/variables'
 import ActionMenu from '../ActionMenu'
 import { ScalableIcon } from '../common/ScalableIcon'
+import ConversationTree from './ConversationTree'
 
 export default function ThreadHistoryDrawer({ session }: { session: Session }) {
   const { t } = useTranslation()
   const language = useLanguage()
   const [showDrawer, setShowDrawer] = useAtom(showThreadHistoryDrawerAtom)
+  const [viewMode, setViewMode] = useState<'list' | 'tree'>('list')
 
   const currentMessageList = useMemo(() => getAllMessageList(session), [session])
 
@@ -64,8 +66,9 @@ export default function ThreadHistoryDrawer({ session }: { session: Session }) {
         keepMounted: true, // Better open performance on mobile.
       }}
       classes={{
-        paper:
-          'bg-none box-border max-w-75vw min-w-[240px] flex flex-col gap-0 pt-[var(--mobile-safe-area-inset-top)] pb-[var(--mobile-safe-area-inset-bottom)]',
+        paper: `bg-none box-border flex flex-col gap-0 pt-[var(--mobile-safe-area-inset-top)] pb-[var(--mobile-safe-area-inset-bottom)] ${
+          viewMode === 'tree' ? 'w-[80vw]' : 'max-w-75vw min-w-[240px]'
+        }`,
       }}
       SlideProps={language === 'ar' ? { direction: 'right' } : undefined}
       PaperProps={
@@ -74,26 +77,52 @@ export default function ThreadHistoryDrawer({ session }: { session: Session }) {
       disableSwipeToOpen={CHATBOX_BUILD_PLATFORM !== 'ios'} // 只在iOS设备上启用SwipeToOpen
       disableEnforceFocus={true} // 关闭 focus trap，避免在侧边栏打开时弹出的 modal 中 input 无法点击
     >
-      <Flex align="center" justify="space-between" className="px-sm py-xs">
+      <Flex align="center" justify="space-between" className="px-sm py-xs shrink-0">
         <Text size="md" fw={600}>
           {t('Thread History')}
         </Text>
-        <ActionIcon variant="transparent" color="chatbox-primary" onClick={() => setShowDrawer(false)}>
-          <ScalableIcon icon={IconX} size={20} />
-        </ActionIcon>
+        <Flex gap="xs" align="center">
+          <ActionIcon
+            variant={viewMode === 'list' ? 'light' : 'transparent'}
+            color="chatbox-primary"
+            onClick={() => setViewMode('list')}
+            title={t('List view')}
+          >
+            <ScalableIcon icon={IconList} size={18} />
+          </ActionIcon>
+          <ActionIcon
+            variant={viewMode === 'tree' ? 'light' : 'transparent'}
+            color="chatbox-primary"
+            onClick={() => setViewMode('tree')}
+            title={t('Tree view')}
+          >
+            <ScalableIcon icon={IconNetwork} size={18} />
+          </ActionIcon>
+          <ActionIcon variant="transparent" color="chatbox-primary" onClick={() => setShowDrawer(false)}>
+            <ScalableIcon icon={IconX} size={20} />
+          </ActionIcon>
+        </Flex>
       </Flex>
-      <ScrollArea className="flex-1">
-        {threadList.map((thread, index) => (
-          <ThreadItem
-            key={thread.id}
-            thread={thread}
-            goto={gotoThreadMessage}
-            showHistoryDrawer={showDrawer}
-            switchThread={handleSwitchThread}
-            lastOne={index === threadList.length - 1}
-          />
-        ))}
-      </ScrollArea>
+      {viewMode === 'list' ? (
+        <ScrollArea className="flex-1">
+          {threadList.map((thread, index) => (
+            <ThreadItem
+              key={thread.id}
+              thread={thread}
+              goto={gotoThreadMessage}
+              showHistoryDrawer={showDrawer}
+              switchThread={handleSwitchThread}
+              lastOne={index === threadList.length - 1}
+            />
+          ))}
+        </ScrollArea>
+      ) : (
+        <div className="flex-1 min-h-0">
+          {/* Only mount ReactFlow while drawer is open to prevent its event
+              listeners from interfering with the chat when drawer is closed */}
+          {showDrawer && <ConversationTree session={session} />}
+        </div>
+      )}
     </SwipeableDrawer>
   )
 }
