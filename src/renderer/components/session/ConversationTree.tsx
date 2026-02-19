@@ -1,9 +1,10 @@
 import type { Message, Session } from '@shared/types'
 import { getMessageText } from '@shared/utils/message'
 import type { Node } from '@xyflow/react'
-import { Background, Controls, Handle, Position, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
+import { Background, Controls, Handle, Position, ReactFlow, useEdgesState, useNodesState, useViewport } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { getContextMessageIds } from '@/packages/context-management'
 import { scrollToMessage } from '@/stores/scrollActions'
 import { switchForkToPosition } from '@/stores/session/forks'
 import { switchThread as switchThreadAction } from '@/stores/sessionActions'
@@ -26,6 +27,7 @@ interface MessageNodeData {
   role: string
   text: string
   isActive: boolean
+  isInContext: boolean
   messageId: string
   threadId: string
   isCurrentThread: boolean
@@ -42,10 +44,14 @@ const ROLE_COLOR: Record<string, string> = {
 }
 
 function MessageNode({ data }: { data: MessageNodeData }) {
+  const { zoom } = useViewport()
   const roleLabel = ROLE_LABEL[data.role] ?? data.role[0]?.toUpperCase() ?? '?'
   const roleColor = ROLE_COLOR[data.role] ?? 'bg-gray-100 text-gray-700'
+  // Scale ring so it stays at least 3px on screen regardless of zoom level
+  const ringPx = data.isInContext ? Math.max(3, Math.round(3 / zoom)) : 0
   return (
     <div
+      style={ringPx ? { boxShadow: `0 0 0 ${ringPx}px #fb923c` } : undefined}
       className={[
         'rounded-xl border px-3 py-2 cursor-pointer w-[180px] transition-all select-none',
         data.isActive
@@ -67,7 +73,24 @@ function MessageNode({ data }: { data: MessageNodeData }) {
   )
 }
 
-const nodeTypes = { message: MessageNode }
+interface DividerNodeData { width: number; [key: string]: unknown }
+
+function ContextDividerNode({ data }: { data: DividerNodeData }) {
+  return (
+    <div style={{ width: data.width, pointerEvents: 'none', position: 'relative', height: 2 }}>
+      <div style={{ position: 'absolute', inset: 0, background: '#fb923c', opacity: 0.55 }} />
+      <span style={{
+        position: 'absolute', right: 0, top: -14,
+        fontSize: 9, color: '#fb923c', background: 'white',
+        padding: '1px 4px', borderRadius: 3, whiteSpace: 'nowrap',
+      }}>
+        context window ↓
+      </span>
+    </div>
+  )
+}
+
+const nodeTypes = { message: MessageNode, 'context-divider': ContextDividerNode }
 
 // ─── Abstract tree ────────────────────────────────────────────────────────────
 
@@ -265,6 +288,7 @@ function flatten(
   node: TNode,
   threadId: string,
   isCurrentThread: boolean,
+  contextIds: Set<string>,
   onClick: (msgId: string, threadId: string, isCurrent: boolean, forkChain: ForkStep[]) => void,
   nodes: LayoutNode[],
   edges: LayoutEdge[]
@@ -277,6 +301,7 @@ function flatten(
       role: node.msg.role,
       text: getMessageText(node.msg),
       isActive: node.isActive,
+      isInContext: contextIds.has(node.msg.id),
       messageId: node.msg.id,
       threadId,
       isCurrentThread,
@@ -291,7 +316,7 @@ function flatten(
       target: child.id,
       isActive: node.isActive && child.isActive,
     })
-    flatten(child, threadId, isCurrentThread, onClick, nodes, edges)
+    flatten(child, threadId, isCurrentThread, contextIds, onClick, nodes, edges)
   }
 }
 
@@ -302,16 +327,17 @@ function layoutThread(
   idPrefix: string,
   threadId: string,
   isCurrentThread: boolean,
+  contextIds: Set<string>,
   onClick: (msgId: string, threadId: string, isCurrent: boolean, forkChain: ForkStep[]) => void
-): { nodes: LayoutNode[]; edges: LayoutEdge[] } {
+): { nodes: LayoutNode[]; edges: LayoutEdge[]; dividerY: number | null; minX: number; maxX: number } {
   const root = buildTree(messages, forksHash, idPrefix, true, 0, branchDepth, 0, 0)
-  if (!root) return { nodes: [], edges: [] }
+  if (!root) return { nodes: [], edges: [], dividerY: null, minX: 0, maxX: NODE_W }
   annotate(root)
   computeWidths(root)
   assignX(root, 0)
   const nodes: LayoutNode[] = []
   const edges: LayoutEdge[] = []
-  flatten(root, threadId, isCurrentThread, onClick, nodes, edges)
+  flatten(root, threadId, isCurrentThread, contextIds, onClick, nodes, edges)
 
   // Shift so the active branch starts at x = 0 (leftmost position)
   const activeXs = nodes.filter((n) => n.data.isActive).map((n) => n.x)
@@ -320,7 +346,21 @@ function layoutThread(
     for (const n of nodes) n.x -= activeLeft
   }
 
-  return { nodes, edges }
+  // Compute divider y: midpoint between last non-context and first context active node
+  const activeNodes = nodes.filter((n) => n.data.isActive).sort((a, b) => a.y - b.y)
+  let dividerY: number | null = null
+  for (let i = 1; i < activeNodes.length; i++) {
+    if (!activeNodes[i - 1].data.isInContext && activeNodes[i].data.isInContext) {
+      dividerY = (activeNodes[i - 1].y + NODE_H + activeNodes[i].y) / 2
+      break
+    }
+  }
+
+  const allX = nodes.map((n) => n.x)
+  const minX = Math.min(...allX)
+  const maxX = Math.max(...allX)
+
+  return { nodes, edges, dividerY, minX, maxX }
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -334,6 +374,7 @@ const DEPTH_OPTIONS: { label: string; value: number | null }[] = [
 
 export default function ConversationTree({ session }: { session: Session }) {
   const [branchDepth, setBranchDepth] = useState<number | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
 
   const handleNodeClick = useCallback(
     async (msgId: string, threadId: string, isCurrentThread: boolean, forkChain: ForkStep[]) => {
@@ -350,6 +391,11 @@ export default function ConversationTree({ session }: { session: Session }) {
       void scrollToMessage(session.id, msgId, 'start', 'smooth')
     },
     [session.id]
+  )
+
+  const contextIds = useMemo(
+    () => new Set(getContextMessageIds(session, session.settings?.maxContextMessageCount)),
+    [session]
   )
 
   const { flowNodes, flowEdges } = useMemo(() => {
@@ -372,6 +418,7 @@ export default function ConversationTree({ session }: { session: Session }) {
       idPrefix: string,
       threadId: string,
       isCurrentThread: boolean,
+      threadContextIds: Set<string>,
       label?: string
     ) => {
       if (msgs.length === 0) return
@@ -396,8 +443,8 @@ export default function ConversationTree({ session }: { session: Session }) {
         yOffset += 28
       }
 
-      const { nodes, edges } = layoutThread(
-        msgs, forks, branchDepth, idPrefix, threadId, isCurrentThread, handleNodeClick
+      const { nodes, edges, dividerY, minX, maxX } = layoutThread(
+        msgs, forks, branchDepth, idPrefix, threadId, isCurrentThread, threadContextIds, handleNodeClick
       )
 
       for (const n of nodes) {
@@ -406,6 +453,20 @@ export default function ConversationTree({ session }: { session: Session }) {
           type: 'message',
           position: { x: n.x, y: yOffset + n.y },
           data: n.data,
+          selectable: false,
+          draggable: false,
+        })
+      }
+
+      // Context boundary divider line
+      if (dividerY !== null) {
+        const pad = 24
+        const divW = maxX - minX + NODE_W + pad * 2
+        allNodes.push({
+          id: `divider_${idPrefix}`,
+          type: 'context-divider',
+          position: { x: minX - pad, y: yOffset + dividerY },
+          data: { width: divW },
           selectable: false,
           draggable: false,
         })
@@ -422,6 +483,7 @@ export default function ConversationTree({ session }: { session: Session }) {
           style: {
             stroke: e.isActive ? '#60a5fa' : '#d1d5db',
             strokeWidth: e.isActive ? 2 : 1.5,
+            vectorEffect: 'non-scaling-stroke',
           },
         })
       }
@@ -430,9 +492,9 @@ export default function ConversationTree({ session }: { session: Session }) {
       yOffset += maxY + NODE_H + 60
     }
 
-    addThread(session.messages, session.messageForksHash, 'cur_', session.id, true)
+    addThread(session.messages, session.messageForksHash, 'cur_', session.id, true, contextIds)
 
-    if (session.threads) {
+    if (showArchived && session.threads) {
       for (const thread of session.threads) {
         addThread(
           thread.messages,
@@ -440,6 +502,7 @@ export default function ConversationTree({ session }: { session: Session }) {
           `th_${thread.id}_`,
           thread.id,
           false,
+          new Set(), // no context highlighting for archived threads
           thread.name || 'Archived thread'
         )
       }
@@ -449,7 +512,7 @@ export default function ConversationTree({ session }: { session: Session }) {
     allEdges.sort((a, b) => (a.animated ? 1 : 0) - (b.animated ? 1 : 0))
 
     return { flowNodes: allNodes, flowEdges: allEdges }
-  }, [session, branchDepth, handleNodeClick])
+  }, [session, branchDepth, contextIds, showArchived, handleNodeClick])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowEdges)
@@ -459,7 +522,7 @@ export default function ConversationTree({ session }: { session: Session }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 shrink-0">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 shrink-0 flex-wrap">
         <span className="text-xs text-gray-500">Branch reach:</span>
         <div className="flex rounded-md overflow-hidden border border-gray-200">
           {DEPTH_OPTIONS.map((opt) => (
@@ -477,6 +540,19 @@ export default function ConversationTree({ session }: { session: Session }) {
             </button>
           ))}
         </div>
+        {!!session.threads?.length && (
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={[
+              'px-2 py-0.5 text-xs font-medium rounded-md border transition-colors',
+              showArchived
+                ? 'bg-blue-500 text-white border-blue-500'
+                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50',
+            ].join(' ')}
+          >
+            {showArchived ? 'Hide archived' : 'Show archived'}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 min-h-0">
