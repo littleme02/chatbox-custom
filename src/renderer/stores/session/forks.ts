@@ -62,6 +62,48 @@ export async function switchFork(sessionId: string, forkMessageId: string, direc
 }
 
 /**
+ * Switch directly to a specific fork branch by index
+ */
+export async function switchForkToPosition(sessionId: string, forkMessageId: string, targetPosition: number) {
+  await chatStore.updateSessionWithMessages(sessionId, (session) => {
+    if (!session) throw new Error('Session not found')
+    const { messageForksHash } = session
+    if (!messageForksHash) return session
+    const forkEntry = messageForksHash[forkMessageId]
+    if (!forkEntry || targetPosition === forkEntry.position) return session
+
+    const rootResult = switchForkInMessagesToPosition(session.messages, forkEntry, forkMessageId, targetPosition)
+    if (rootResult) {
+      const { messages, fork } = rootResult
+      return {
+        ...session,
+        messages,
+        messageForksHash: computeNextMessageForksHash(messageForksHash, forkMessageId, fork),
+      } as typeof session
+    }
+
+    if (!session.threads?.length) return session
+
+    let updatedFork: MessageForkEntry | null = null
+    let processed = false
+    const updatedThreads = session.threads.map((thread) => {
+      if (processed) return thread
+      const result = switchForkInMessagesToPosition(thread.messages, forkEntry, forkMessageId, targetPosition)
+      if (!result) return thread
+      processed = true
+      updatedFork = result.fork
+      return { ...thread, messages: result.messages }
+    })
+    if (!processed) return session
+    return {
+      ...session,
+      threads: updatedThreads,
+      messageForksHash: computeNextMessageForksHash(messageForksHash, forkMessageId, updatedFork),
+    } as typeof session
+  })
+}
+
+/**
  * Delete the current fork branch
  */
 export async function deleteFork(sessionId: string, forkMessageId: string) {
@@ -225,6 +267,36 @@ function switchForkInMessages(
   return {
     messages: messages.slice(0, forkMessageIndex + 1).concat(branchMessages),
     fork: updatedFork,
+  }
+}
+
+function switchForkInMessagesToPosition(
+  messages: Message[],
+  forkEntry: MessageForkEntry,
+  forkMessageId: string,
+  targetPosition: number
+): { messages: Message[]; fork: MessageForkEntry | null } | null {
+  const forkMessageIndex = messages.findIndex((m) => m.id === forkMessageId)
+  if (forkMessageIndex < 0) return null
+
+  const currentTail = messages.slice(forkMessageIndex + 1)
+  const currentPosition = forkEntry.position
+  if (targetPosition < 0 || targetPosition >= forkEntry.lists.length) return null
+
+  const branchMessages = forkEntry.lists[targetPosition]?.messages ?? []
+  const finalLists = forkEntry.lists.map((list, index) => {
+    if (index === currentPosition && currentPosition !== targetPosition) {
+      return { ...list, messages: currentTail }
+    }
+    if (index === targetPosition) {
+      return { ...list, messages: [] }
+    }
+    return list
+  })
+
+  return {
+    messages: messages.slice(0, forkMessageIndex + 1).concat(branchMessages),
+    fork: { ...forkEntry, position: targetPosition, lists: finalLists },
   }
 }
 
