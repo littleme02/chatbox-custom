@@ -4,7 +4,7 @@ import type { Node } from '@xyflow/react'
 import { Background, Controls, Handle, Position, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { scrollToIndex, scrollToMessage } from '@/stores/scrollActions'
+import { scrollToMessage } from '@/stores/scrollActions'
 import { switchForkToPosition } from '@/stores/session/forks'
 import { switchThread as switchThreadAction } from '@/stores/sessionActions'
 
@@ -46,7 +46,6 @@ function MessageNode({ data }: { data: MessageNodeData }) {
   const roleColor = ROLE_COLOR[data.role] ?? 'bg-gray-100 text-gray-700'
   return (
     <div
-      onClick={data.onClick}
       className={[
         'rounded-xl border px-3 py-2 cursor-pointer w-[180px] transition-all select-none',
         data.isActive
@@ -346,11 +345,11 @@ export default function ConversationTree({ session }: { session: Session }) {
       for (const step of forkChain) {
         await switchForkToPosition(session.id, step.forkMsgId, step.listIndex)
       }
-      // Scroll to the message
-      const idx = session.messages.findIndex((m) => m.id === msgId)
-      if (idx >= 0) scrollToIndex(idx, 'start', 'smooth')
+      // scrollToMessage fetches the fresh session so the index accounts for
+      // archived thread messages prepended to the list
+      void scrollToMessage(session.id, msgId, 'start', 'smooth')
     },
-    [session.id, session.messages]
+    [session.id]
   )
 
   const { flowNodes, flowEdges } = useMemo(() => {
@@ -494,7 +493,7 @@ export default function ConversationTree({ session }: { session: Session }) {
           nodesConnectable={false}
           elementsSelectable={false}
           zoomOnDoubleClick={false}
-          onNodeClick={(_, node) => (node.data as MessageNodeData).onClick()}
+          onNodeClick={(_, node) => (node.data as MessageNodeData).onClick?.()}
           className="bg-gray-50 [&_.react-flow__node]:cursor-pointer"
         >
           <Controls showInteractive={false} />
