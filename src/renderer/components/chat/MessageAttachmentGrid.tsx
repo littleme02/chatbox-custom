@@ -9,9 +9,11 @@ const COLLAPSED_MAX = 4
 interface MessageAttachmentGridProps {
   files?: MessageFile[]
   links?: MessageLink[]
+  onRemoveFile?: (id: string) => void
+  onRemoveLink?: (id: string) => void
 }
 
-export function MessageAttachmentGrid({ files, links }: MessageAttachmentGridProps) {
+export function MessageAttachmentGrid({ files, links, onRemoveFile, onRemoveLink }: MessageAttachmentGridProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
 
@@ -37,6 +39,7 @@ export function MessageAttachmentGrid({ files, links }: MessageAttachmentGridPro
               fileType={file.fileType}
               byteLength={file.byteLength}
               storageKey={file.storageKey}
+              onDelete={onRemoveFile ? () => onRemoveFile(file.id) : undefined}
             />
           </div>
         ))}
@@ -47,6 +50,7 @@ export function MessageAttachmentGrid({ files, links }: MessageAttachmentGridPro
               url={link.url}
               byteLength={link.byteLength}
               storageKey={link.storageKey}
+              onDelete={onRemoveLink ? () => onRemoveLink(link.id) : undefined}
             />
           </div>
         ))}

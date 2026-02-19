@@ -553,7 +553,14 @@ const _Message: FC<Props> = (props) => {
                 <Text c="chatbox-tertiary">{tips.join(', ')}</Text>
               )}
             </div>
-            {(msg.files || msg.links) && <MessageAttachmentGrid files={msg.files} links={msg.links} />}
+            {(msg.files || msg.links) && (
+              <MessageAttachmentGrid
+                files={msg.files}
+                links={msg.links}
+                onRemoveFile={(id) => modifyMessage(sessionId, { ...msg, files: msg.files?.filter((f) => f.id !== id) })}
+                onRemoveLink={(id) => modifyMessage(sessionId, { ...msg, links: msg.links?.filter((l) => l.id !== id) })}
+              />
+            )}
 
             {/* actions */}
             {buttonGroup !== 'none' && !msg.generating && (

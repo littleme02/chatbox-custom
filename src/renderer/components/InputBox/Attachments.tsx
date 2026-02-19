@@ -1,7 +1,9 @@
+import type React from 'react'
 import NiceModal from '@ebay/nice-modal-react'
 import { Tooltip, Typography } from '@mui/material'
 import { ChatboxAIAPIError } from '@shared/models/errors'
 import { AlertCircle, CheckCircle, Eye, Link, Link2, Loader2, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import MiniButton from '../common/MiniButton'
 import FileIcon from '../FileIcon'
@@ -124,9 +126,24 @@ export function MessageAttachment(props: {
   storageKey?: string
   fileType?: string
   byteLength?: number
+  onDelete?: () => void
 }) {
-  const { label, filename, url, storageKey, fileType, byteLength } = props
+  const { label, filename, url, storageKey, fileType, byteLength, onDelete } = props
   const { t } = useTranslation()
+  const [confirming, setConfirming] = useState(false)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => { if (confirmTimer.current) clearTimeout(confirmTimer.current) }, [])
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (confirming) {
+      onDelete!()
+    } else {
+      setConfirming(true)
+      confirmTimer.current = setTimeout(() => setConfirming(false), 2000)
+    }
+  }
 
   const handleClick = async () => {
     if (storageKey) {
@@ -151,7 +168,7 @@ export function MessageAttachment(props: {
   return (
     <Tooltip title={isClickable ? t('Click to view parsed content') : label}>
       <div
-        className={`flex items-center gap-2 px-2 py-1.5 min-w-0
+        className={`group/msg-attachment flex items-center gap-2 px-2 py-1.5 min-w-0
             rounded-md
             bg-chatbox-background-secondary
             ${isClickable ? 'cursor-pointer hover:bg-chatbox-background-secondary-hover transition-colors' : ''}`}
@@ -173,9 +190,22 @@ export function MessageAttachment(props: {
         </div>
         {isClickable && (
           <Eye
-            className="flex-none w-3.5 h-3.5 text-chatbox-tertiary opacity-0 group-hover/attachment:opacity-100 transition-opacity"
+            className="flex-none w-3.5 h-3.5 text-chatbox-tertiary opacity-0 group-hover/msg-attachment:opacity-100 transition-opacity"
             strokeWidth={1.5}
           />
+        )}
+        {onDelete && (
+          <button
+            className={`flex-none hidden group-hover/msg-attachment:flex items-center justify-center rounded transition-colors cursor-pointer border-none p-0 ${
+              confirming
+                ? 'text-red-600 bg-red-100 dark:bg-red-900/40 px-1 gap-0.5 h-4 text-[10px] font-medium'
+                : 'text-red-400 hover:text-red-600 bg-transparent hover:bg-red-50 dark:hover:bg-red-900/30 w-4 h-4'
+            }`}
+            onClick={handleDeleteClick}
+          >
+            <Trash2 size={12} strokeWidth={2} />
+            {confirming && <span>?</span>}
+          </button>
         )}
       </div>
     </Tooltip>
