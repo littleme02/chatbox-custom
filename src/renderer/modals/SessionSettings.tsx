@@ -24,7 +24,7 @@ import {
 } from '@shared/types'
 import { IconInfoCircle, IconTrash } from '@tabler/icons-react'
 import { pick } from 'lodash'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AssistantAvatar } from '@/components/common/Avatar'
 import { AdaptiveModal } from '@/components/common/AdaptiveModal'
@@ -53,22 +53,34 @@ const SessionSettingsModal = NiceModal.create(
     useEffect(() => {
       if (!session) {
         setEditingData(null)
-      } else {
-        setEditingData({
+        return
+      }
+      // Only reinitialize when a *different* session is loaded into the modal.
+      // Background updates to the same session (new messages, name generation,
+      // context-window recalculation, etc.) must NOT overwrite the user's
+      // in-progress edits.
+      setEditingData((current) => {
+        if (current && current.id === session.id) return current
+        return {
           ...session,
           settings: session.settings ? { ...session.settings } : undefined,
-        })
-      }
+        }
+      })
     }, [session])
 
     const [systemPrompt, setSystemPrompt] = useState('')
+    const systemPromptSessionId = useRef<string | null>(null)
     useEffect(() => {
       if (!session) {
         setSystemPrompt('')
-      } else {
-        const systemMessage = session.messages.find((m) => m.role === 'system')
-        setSystemPrompt(systemMessage ? getMessageText(systemMessage) : '')
+        systemPromptSessionId.current = null
+        return
       }
+      // Same guard: don't overwrite the user's typed system prompt on background updates
+      if (systemPromptSessionId.current === session.id) return
+      systemPromptSessionId.current = session.id
+      const systemMessage = session.messages.find((m) => m.role === 'system')
+      setSystemPrompt(systemMessage ? getMessageText(systemMessage) : '')
     }, [session])
 
     const onReset = (event: React.MouseEvent) => {
