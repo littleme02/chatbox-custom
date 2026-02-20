@@ -18,6 +18,8 @@ A personal fork of [Chatbox](https://github.com/Bin-Huang/chatbox) with usabilit
 
 - **Delete attachments from sent messages** — remove file or link attachments from already-sent messages, with a two-click confirmation to avoid accidents.
 
+- **Selective import with merge/clear control** — the Data Restore section now mirrors the export checkboxes: pick which categories to import (Settings, API Keys, Chat History, Copilots) and choose per-category whether to merge with existing data or clear it first.
+
 - **Wider scrollbar** — 12px scrollbar for easier grabbing.
 
 ## Building
