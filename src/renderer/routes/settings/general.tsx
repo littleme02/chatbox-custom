@@ -5,7 +5,9 @@ import {
   Divider,
   FileButton,
   Flex,
+  Group,
   Radio,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -299,6 +301,18 @@ const ImportExportDataSection = () => {
   const { t } = useTranslation()
 
   const [importTips, setImportTips] = useState('')
+  const [importItems, setImportItems] = useState<ExportDataItem[]>([
+    ExportDataItem.Setting,
+    ExportDataItem.Key,
+    ExportDataItem.Conversations,
+    ExportDataItem.Copilot,
+  ])
+  const [importClearMap, setImportClearMap] = useState<Record<ExportDataItem, boolean>>({
+    [ExportDataItem.Setting]: false,
+    [ExportDataItem.Key]: false,
+    [ExportDataItem.Conversations]: false,
+    [ExportDataItem.Copilot]: false,
+  })
   const [exportItems, setExportItems] = useState<ExportDataItem[]>([
     ExportDataItem.Setting,
     ExportDataItem.Conversations,
@@ -367,25 +381,68 @@ const ImportExportDataSection = () => {
             false
           )
 
+          // Filter categories based on importItems (same logic as export)
+          if (!importItems.includes(ExportDataItem.Key) && importData[StorageKey.Settings]) {
+            delete (importData[StorageKey.Settings] as Settings).licenseKey
+            importData[StorageKey.Settings].providers = mapValues(
+              (importData[StorageKey.Settings] as Settings).providers,
+              (provider: ProviderInfo) => {
+                delete provider.apiKey
+                return provider
+              }
+            )
+          }
+          if (!importItems.includes(ExportDataItem.Setting)) delete importData[StorageKey.Settings]
+          if (!importItems.includes(ExportDataItem.Conversations)) {
+            delete importData[StorageKey.ChatSessions]
+            Object.keys(importData).forEach((k) => {
+              if (k.startsWith('session:')) delete importData[k]
+            })
+          }
+          if (!importItems.includes(ExportDataItem.Copilot)) delete importData[StorageKey.MyCopilots]
+
           const entriesToImport = Object.entries(importData).filter(
-            ([key]) => key !== StorageKey.ChatSessionsList && key !== StorageKey.ConfigVersion && !key.startsWith('__')
+            ([key, value]) =>
+              key !== StorageKey.ChatSessionsList &&
+              key !== StorageKey.ConfigVersion &&
+              !key.startsWith('__') &&
+              value !== null &&
+              value !== undefined
           )
 
           const importedChatSessions = Array.isArray(importData[StorageKey.ChatSessionsList])
             ? importData[StorageKey.ChatSessionsList]
             : undefined
 
+          // Clear existing data for categories set to "clear" mode
+          if (importItems.includes(ExportDataItem.Setting) && importClearMap[ExportDataItem.Setting]) {
+            await storage.setItemNow(StorageKey.Settings, null)
+          }
+          if (importItems.includes(ExportDataItem.Conversations) && importClearMap[ExportDataItem.Conversations]) {
+            const existingSessions = await storage.getItem(StorageKey.ChatSessionsList, [])
+            for (const session of existingSessions) {
+              await storage.setItemNow(`session:${session.id}`, null)
+            }
+            await storage.setItemNow(StorageKey.ChatSessionsList, [])
+          }
+          if (importItems.includes(ExportDataItem.Copilot) && importClearMap[ExportDataItem.Copilot]) {
+            await storage.setItemNow(StorageKey.MyCopilots, null)
+          }
+
           for (const [key, value] of entriesToImport) {
             await storage.setItemNow(key, value)
           }
 
           if (importedChatSessions) {
-            const previousChatSessions = await storage.getItem(StorageKey.ChatSessionsList, [])
-
-            await storage.setItemNow(
-              StorageKey.ChatSessionsList,
-              uniqBy([...previousChatSessions, ...importedChatSessions], 'id')
-            )
+            if (importClearMap[ExportDataItem.Conversations]) {
+              await storage.setItemNow(StorageKey.ChatSessionsList, importedChatSessions)
+            } else {
+              const previousChatSessions = await storage.getItem(StorageKey.ChatSessionsList, [])
+              await storage.setItemNow(
+                StorageKey.ChatSessionsList,
+                uniqBy([...previousChatSessions, ...importedChatSessions], 'id')
+              )
+            }
           }
 
           // 由于即将重启应用，这里不需要清理loading状态
@@ -462,13 +519,44 @@ const ImportExportDataSection = () => {
 
       <Divider />
 
-      <Stack gap="lg">
+      <Stack gap="md">
         <Stack gap="xxs">
           <Title order={5}>{t('Data Restore')}</Title>
           <Text c="chatbox-tertiary">
             {t('Upon import, changes will take effect immediately and existing data will be overwritten')}
           </Text>
         </Stack>
+        {[
+          { label: t('Settings'), value: ExportDataItem.Setting },
+          { label: t('API KEY & License'), value: ExportDataItem.Key },
+          { label: t('Chat History'), value: ExportDataItem.Conversations },
+          { label: t('My Copilots'), value: ExportDataItem.Copilot },
+        ].map(({ label, value }) => {
+          const enabled = importItems.includes(value)
+          return (
+            <Group key={value} gap="sm" align="center">
+              <Checkbox
+                checked={enabled}
+                label={label}
+                onChange={(e) => {
+                  setImportItems(
+                    e.currentTarget.checked ? [...importItems, value] : importItems.filter((v) => v !== value)
+                  )
+                }}
+              />
+              <SegmentedControl
+                size="xs"
+                disabled={!enabled}
+                value={importClearMap[value] ? 'clear' : 'merge'}
+                onChange={(v) => setImportClearMap({ ...importClearMap, [value]: v === 'clear' })}
+                data={[
+                  { label: t('Merge'), value: 'merge' },
+                  { label: t('Clear'), value: 'clear' },
+                ]}
+              />
+            </Group>
+          )
+        })}
         {importTips && (
           <Alert
             className=" self-start"
